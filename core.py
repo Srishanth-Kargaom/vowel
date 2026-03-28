@@ -12,8 +12,8 @@ from sentence_transformers import SentenceTransformer
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 EMBED_DIM = 384  # all-MiniLM-L6-v2
-HF_MODEL  = "deepseek-ai/deepseek-coder-1.3b-instruct"
-API_URL   = f"API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}""
+HF_MODEL  = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+API_URL   = "https://router.huggingface.co/v1/chat/completions"
 
 # ── KNOWLEDGE BASE ─────────────────────────────────────────────────────────────
 KNOWLEDGE_BASE = [
@@ -118,39 +118,38 @@ def generate_via_api(prompt: str, max_tokens: int = 400) -> str:
     if not hf_token:
         return "⚠️ HF_TOKEN not found. Please add it in Streamlit Secrets (Settings → Secrets)."
 
-    headers = {"Authorization": f"Bearer {hf_token}"}
+    headers = {
+        "Authorization": f"Bearer {hf_token}",
+        "Content-Type":  "application/json",
+    }
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens":    max_tokens,
-            "do_sample":         False,
-            "repetition_penalty": 1.15,
-            "return_full_text":  False,
-        },
+        "model": HF_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": prompt},
+        ],
+        "max_tokens":  max_tokens,
+        "temperature": 0.2,
     }
 
     try:
         resp = requests.post(API_URL, headers=headers, json=payload, timeout=60)
 
-        if resp.status_code == 503:
-            return "⏳ Model is loading on HuggingFace servers. Please wait 20 seconds and try again."
         if resp.status_code == 401:
             return "❌ Invalid HF_TOKEN. Please check your token in Streamlit Secrets."
+        if resp.status_code == 503:
+            return "⏳ Model is loading. Please wait 20 seconds and try again."
         if resp.status_code != 200:
-            return f"❌ API error {resp.status_code}: {resp.text[:200]}"
+            return f"❌ API error {resp.status_code}: {resp.text[:300]}"
 
         data = resp.json()
-        if isinstance(data, list) and data:
-            text = data[0].get("generated_text", "").strip()
-            # Strip any repeated prompt markers
-            for marker in ["### Instruction:", "### Response:", "User:", "Assistant:"]:
-                if marker in text:
-                    text = text.split(marker)[0].strip()
-            return text if text else "No response generated. Try rephrasing your question."
-        return str(data)
+        text = data["choices"][0]["message"]["content"].strip()
+        return text if text else "No response generated. Try rephrasing your question."
 
     except requests.exceptions.Timeout:
-        return "⏱️ Request timed out. The model may be busy — please try again in a moment."
+        return "⏱️ Request timed out. Please try again in a moment."
+    except (KeyError, IndexError):
+        return f"❌ Unexpected response format: {str(data)[:200]}"
     except Exception as e:
         return f"❌ Unexpected error: {e}"
 
