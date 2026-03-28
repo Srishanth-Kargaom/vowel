@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 EMBED_DIM = 384  # all-MiniLM-L6-v2
-HF_MODEL = "Qwen/Qwen3-8B:fastest"
+HF_MODEL  = "Qwen/Qwen3-8B:fastest"
 API_URL   = "https://router.huggingface.co/v1/chat/completions"
 
 # ── KNOWLEDGE BASE ─────────────────────────────────────────────────────────────
@@ -144,6 +144,11 @@ def generate_via_api(prompt: str, max_tokens: int = 400) -> str:
 
         data = resp.json()
         text = data["choices"][0]["message"]["content"].strip()
+
+        # Strip <think>...</think> reasoning blocks (Qwen3 chain-of-thought)
+        import re
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
         return text if text else "No response generated. Try rephrasing your question."
 
     except requests.exceptions.Timeout:
