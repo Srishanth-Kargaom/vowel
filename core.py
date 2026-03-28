@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 EMBED_DIM = 384  # all-MiniLM-L6-v2
-HF_MODEL  = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+HF_MODEL = "Qwen/Qwen3-8B:fastest"
 API_URL   = "https://router.huggingface.co/v1/chat/completions"
 
 # ── KNOWLEDGE BASE ─────────────────────────────────────────────────────────────
