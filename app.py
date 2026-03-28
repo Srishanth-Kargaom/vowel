@@ -731,7 +731,42 @@ else:
             </div>
             """
         else:
-            content = msg["content"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            import re as _re
+
+            # Strip <think> blocks BEFORE HTML escaping — this is the fix
+            raw = msg["content"]
+            raw = _re.sub(r"<think>.*?</think>", "", raw, flags=_re.DOTALL)
+            raw = _re.sub(r"<think>.*",          "", raw, flags=_re.DOTALL)
+            raw = _re.sub(r"</?think>",           "", raw)
+            raw = raw.strip()
+
+            # HTML escape
+            content = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+            # Render fenced code blocks nicely
+            def _code_block(m):
+                code = m.group(2).replace("&amp;","&").replace("&lt;","<").replace("&gt;",">")
+                code = code.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+                return (
+                    f'<pre style="background:#0b0d11;border:1px solid #1f2330;'
+                    f'border-radius:8px;padding:12px 16px;margin:8px 0;'
+                    f'overflow-x:auto;">'
+                    f'<code style="color:#e8eaf2;font-family:\'JetBrains Mono\',monospace;'
+                    f'font-size:12px;line-height:1.6;">{code}</code></pre>'
+                )
+            content = _re.sub(r"```(\w*)\n?(.*?)```", _code_block, content, flags=_re.DOTALL)
+
+            # Inline code
+            content = _re.sub(
+                r"`([^`]+)`",
+                r'<code style="background:#0b0d11;padding:2px 5px;border-radius:4px;'
+                r'color:#fbbf24;font-size:12px;">\1</code>',
+                content
+            )
+
+            # Newlines to <br>
+            content = content.replace("\n", "<br>")
+
             mem_tag = ""
             if msg.get("used_memory"):
                 mem_tag = """
@@ -746,7 +781,7 @@ else:
                     <span class="who">Vowel</span>
                     <span>{ts}</span>
                 </div>
-                <div class="bubble bot">{content}</div>
+                <div class="bubble bot" style="white-space:normal;">{content}</div>
                 {mem_tag}
             </div>
             """
@@ -821,6 +856,14 @@ if send and (user_msg.strip() or code_input.strip()):
 
     with st.spinner("⬡  Thinking…"):
         answer = generate_via_api(prompt, max_tokens=400)
+
+    # Final safety strip — catches any think tags that slipped through
+    import re as _re
+    answer = _re.sub(r"<think>.*?</think>", "", answer, flags=_re.DOTALL)
+    answer = _re.sub(r"<think>.*",          "", answer, flags=_re.DOTALL)
+    answer = _re.sub(r"</?think>",           "", answer).strip()
+    if not answer:
+        answer = "No response generated. Please rephrase your question."
 
     ts_ans = datetime.now().isoformat()
     st.session_state.chat.append({

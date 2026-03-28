@@ -145,9 +145,18 @@ def generate_via_api(prompt: str, max_tokens: int = 400) -> str:
         data = resp.json()
         text = data["choices"][0]["message"]["content"].strip()
 
-        # Strip <think>...</think> reasoning blocks (Qwen3 chain-of-thought)
+        # Strip Qwen3 chain-of-thought blocks — multiple patterns for robustness
         import re
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+        # Full <think>...</think> block
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        # Partial block — model started thinking but did not close the tag
+        text = re.sub(r"<think>.*", "", text, flags=re.DOTALL)
+        # Any leftover opening or closing tags
+        text = re.sub(r"</?think>", "", text)
+        text = text.strip()
+
+        # Clean up leading blank lines
+        text = re.sub(r"^\s+", "", text)
 
         return text if text else "No response generated. Try rephrasing your question."
 
