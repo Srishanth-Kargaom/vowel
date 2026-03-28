@@ -13,7 +13,7 @@ from sentence_transformers import SentenceTransformer
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 EMBED_DIM = 384  # all-MiniLM-L6-v2
 HF_MODEL  = "deepseek-ai/deepseek-coder-1.3b-instruct"
-API_URL   = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+API_URL   = f"API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}""
 
 # ── KNOWLEDGE BASE ─────────────────────────────────────────────────────────────
 KNOWLEDGE_BASE = [
