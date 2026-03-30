@@ -7,7 +7,7 @@ Two-layer memory:
 
 NOTE: On Streamlit Cloud, SQLite/FAISS files are written to the app's working
 directory. They persist for the lifetime of the deployment but reset on reboot.
-For true cross-session persistence, swap SQLite for a cloud DB (e.g. Supabase).
+For true cross-session persistence, swap SQLite for a cloud DB (e.g. Supabase). 
 """
 
 import sqlite3
