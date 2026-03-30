@@ -426,7 +426,32 @@ else:
                 r'color:#fbbf24;font-size:12px;">\1</code>',
                 content
             )
-            content = content.replace("\n", "<br>")
+            def _code_block(m):
+    code = m.group(2)
+
+    # escape properly
+    code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    return f'''
+    <pre style="
+        background:#0b0d11;
+        border:1px solid #1f2330;
+        border-radius:8px;
+        padding:14px 16px;
+        margin:10px 0;
+        overflow-x:auto;
+        white-space:pre;
+        line-height:1.6;
+    ">
+    <code style="
+        color:#e8eaf2;
+        font-family:'JetBrains Mono',monospace;
+        font-size:12px;
+        display:block;
+    ">{code}</code>
+    </pre>
+    '''
+    content = content.replace("\n", "<br>")
 
             mem_tag = ""
             if msg.get("used_memory"):
