@@ -140,16 +140,9 @@ code, pre, .mono { font-family: 'JetBrains Mono', monospace !important; }
 .msg-row.bot  .who { color: var(--green); }
 .bubble { padding: 14px 18px; border-radius: var(--radius-lg); font-size: 14px; line-height: 1.75; max-width: 680px; word-break: break-word; }
 .bubble.user { background: var(--accent-dim); border: 1px solid var(--accent); color: #ddd8ff; border-radius: var(--radius-lg) var(--radius-lg) 4px var(--radius-lg); }
-.bubble.bot  { background: var(--panel); border: 1px solid var(--border); color: var(--text-1); border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; white-space: pre-wrap; }
+.bubble.bot  { background: var(--panel); border: 1px solid var(--border); color: var(--text-1); border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; white-space: normal; }
 .bubble.bot code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--amber); }
-.bubble.bot pre {
-  white-space: pre !important;
-  overflow-x: auto !important;
-}
-
-.bubble.bot {
-  white-space: normal !important;
-}
+.bubble.bot pre { white-space: pre !important; overflow-x: auto !important; }
 
 /* ── MEMORY NOTICE ── */
 .mem-notice { display: flex; align-items: center; gap: 6px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent); margin-top: 6px; opacity: .75; }
@@ -374,6 +367,24 @@ st.markdown(f"""
 # ── CHAT FEED ──────────────────────────────────────────────────────────────────
 import re as _re
 
+# FIX 1: _code_block defined at module level — NOT nested inside the for loop.
+# FIX 2: Input `m.group(2)` is already HTML-escaped at this point, so we
+#         unescape it once, then re-escape cleanly to avoid double-encoding.
+def _code_block(m):
+    code = m.group(2)
+    # Undo the HTML escaping that was applied to the whole message body,
+    # then re-apply it cleanly inside the <code> tag.
+    code = code.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return (
+        '<div style="width:100%;overflow-x:auto;margin:10px 0;">'
+        '<pre style="background:#0b0d11;border:1px solid #1f2330;border-radius:10px;'
+        'padding:16px;margin:0;white-space:pre;line-height:1.6;">'
+        f'<code style="color:#e8eaf2;font-family:\'JetBrains Mono\',monospace;'
+        f'font-size:13px;display:block;">{code}</code>'
+        '</pre></div>'
+    )
+
 chat = st.session_state.chat
 
 if not chat:
@@ -415,57 +426,33 @@ else:
             raw = _re.sub(r"<think>.*",          "", raw, flags=_re.DOTALL)
             raw = _re.sub(r"</?think>",           "", raw).strip()
 
+            # HTML-escape the whole message first
             content = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-            def _code_block(m):
-    code = m.group(2)
-
-    # Proper escaping
-    code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-    return f"""
-    <div style="
-        width: 100%;
-        overflow-x: auto;
-        margin: 10px 0;
-    ">
-        <pre style="
-            background:#0b0d11;
-            border:1px solid #1f2330;
-            border-radius:10px;
-            padding:16px;
-            margin:0;
-            min-width:100%;
-            white-space:pre;
-            line-height:1.6;
-        ">
-<code style="
-    color:#e8eaf2;
-    font-family:'JetBrains Mono', monospace;
-    font-size:13px;
-    display:block;
-">{code}</code>
-        </pre>
-    </div>
-    """
-
+            # FIX 3: apply _code_block BEFORE replacing \n with <br>,
+            #         so newlines inside code blocks are preserved as-is in <pre>.
             content = _re.sub(r"```(\w*)\n?(.*?)```", _code_block, content, flags=_re.DOTALL)
+
+            # Inline code
             content = _re.sub(
                 r"`([^`]+)`",
                 r'<code style="background:#0b0d11;padding:2px 5px;border-radius:4px;'
                 r'color:#fbbf24;font-size:12px;">\1</code>',
                 content
             )
+
+            # Replace newlines with <br> for prose (outside pre blocks)
             content = content.replace("\n", "<br>")
 
             mem_tag = ""
             if msg.get("used_memory"):
                 mem_tag = '<div class="mem-notice"><div class="mem-dot"></div>drawing on our earlier conversation</div>'
 
+            # FIX 4: {content} was missing from the bot bubble — responses never showed.
             bubbles_html += f"""
             <div class="msg-row bot">
               <div class="msg-meta"><span class="who">Vowel</span><span>{ts}</span></div>
-              <div class="bubble bot">
+              <div class="bubble bot">{content}</div>
               {mem_tag}
             </div>"""
 
@@ -504,7 +491,7 @@ with col_send:
     send = st.button("Send ▶", type="primary", use_container_width=True)
 with col_hint:
     st.markdown(
-        '<div class="send-hint" style="padding-top:8px;">Vowel · Mistral-7B via HuggingFace Free API · persistent memory</div>',
+        '<div class="send-hint" style="padding-top:8px;">Vowel · Qwen2.5-72B via HuggingFace Free API · persistent memory</div>',
         unsafe_allow_html=True
     )
 
@@ -539,7 +526,7 @@ if send and (user_msg.strip() or code_input.strip()):
     with st.spinner("⬡ Thinking…"):
         answer = generate_via_api(prompt, max_tokens=512)
 
-    # Final safety strip — catches any think tags that slipped through
+    # Final safety strip
     answer = _re.sub(r"<think>.*?</think>", "", answer, flags=_re.DOTALL)
     answer = _re.sub(r"<think>.*",          "", answer, flags=_re.DOTALL)
     answer = _re.sub(r"</?think>",           "", answer).strip()
