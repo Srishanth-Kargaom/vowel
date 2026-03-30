@@ -1,6 +1,6 @@
 """
 app.py — Vowel AI Code Assistant with persistent memory.
-Run: streamlit run app.py
+Run: streamlit run app.py 
 """
 
 import streamlit as st
