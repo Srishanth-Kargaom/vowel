@@ -14,8 +14,10 @@ from sentence_transformers import SentenceTransformer
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 EMBED_DIM = 384  # all-MiniLM-L6-v2
 
-# Qwen3-8B via Cerebras — free tier, fast, reliable on router.huggingface.co
-HF_MODEL  = "Qwen/Qwen3-8B:cerebras"
+# ✅ FIXED: Qwen/Qwen3-8B:cerebras is no longer supported.
+#    Primary  → Qwen/Qwen2.5-72B-Instruct  (novita provider, free tier)
+#    Fallback → mistralai/Mistral-7B-Instruct-v0.3
+HF_MODEL  = "Qwen/Qwen2.5-72B-Instruct"
 API_URL   = "https://router.huggingface.co/v1/chat/completions"
 
 # ── KNOWLEDGE BASE ─────────────────────────────────────────────────────────────
@@ -64,7 +66,7 @@ When explaining: give a one-line summary, step-by-step walkthrough, complexity.
 When fixing: name each bug and root cause, show complete fixed code.
 When improving: list issues, show complete improved version, state complexity change.
 For questions: answer directly, explain why, show a code example.
-Always show complete code. Be precise. No filler. Do NOT include <think> blocks."""
+Always show complete code. Be precise. No filler."""
 
 MODE_INSTRUCTIONS = {
     "explain": "Explain this code step by step. State complexity. Note one gotcha.",
@@ -115,13 +117,12 @@ class KnowledgeBase:
                 results.append(item)
         return results
 
-# ── HF TOKEN LOADER — checks both key names ────────────────────────────────────
+# ── HF TOKEN LOADER ────────────────────────────────────────────────────────────
 def _get_hf_token() -> str:
     """
     Checks both HF_TOKEN and HF_API_KEY in Streamlit secrets and env vars.
     Returns the first non-empty value found, or empty string.
     """
-    # 1. Streamlit secrets (deployed app)
     for key_name in ("HF_TOKEN", "HF_API_KEY"):
         try:
             val = st.secrets[key_name]
@@ -130,13 +131,11 @@ def _get_hf_token() -> str:
         except (KeyError, FileNotFoundError, AttributeError):
             pass
 
-    # 2. Environment variables (local dev / Docker)
     for key_name in ("HF_TOKEN", "HF_API_KEY"):
         val = os.environ.get(key_name, "")
         if val:
             return val.strip()
 
-    # 3. Session state (typed into sidebar at runtime)
     return st.session_state.get("hf_key", "").strip()
 
 # ── HUGGINGFACE INFERENCE API ──────────────────────────────────────────────────
@@ -170,24 +169,20 @@ def generate_via_api(prompt: str, max_tokens: int = 400) -> str:
     try:
         resp = requests.post(API_URL, headers=headers, json=payload, timeout=60)
 
-        # Surface full error body before raise_for_status discards it
         if not resp.ok:
             try:
                 detail = resp.json()
             except Exception:
                 detail = resp.text[:300]
+
+            # Auto-fallback when primary model is unavailable
+            if resp.status_code in (400, 404, 422):
+                return _fallback_generate(prompt, max_tokens, hf_token)
+
             return f"❌ API error {resp.status_code}: {detail}"
 
         data = resp.json()
         text = data["choices"][0]["message"]["content"].strip()
-
-        # Strip Qwen3 chain-of-thought <think> blocks
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        text = re.sub(r"<think>.*",          "", text, flags=re.DOTALL)
-        text = re.sub(r"</?think>",          "", text)
-        text = re.sub(r"^\s+",               "", text)
-        text = text.strip()
-
         return text if text else "No response generated. Try rephrasing your question."
 
     except requests.exceptions.Timeout:
@@ -196,6 +191,38 @@ def generate_via_api(prompt: str, max_tokens: int = 400) -> str:
         return f"❌ Unexpected response format: {str(data)[:200]}"
     except Exception as e:
         return f"❌ Unexpected error: {e}"
+
+
+def _fallback_generate(prompt: str, max_tokens: int, hf_token: str) -> str:
+    """Fallback to Mistral-7B if primary model is unavailable."""
+    FALLBACK_MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
+    headers = {
+        "Authorization": f"Bearer {hf_token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": FALLBACK_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": prompt},
+        ],
+        "max_tokens": max_tokens,
+        "temperature": 0.2,
+    }
+    try:
+        resp = requests.post(API_URL, headers=headers, json=payload, timeout=60)
+        if not resp.ok:
+            try:
+                detail = resp.json()
+            except Exception:
+                detail = resp.text[:300]
+            return f"❌ API error {resp.status_code}: {detail}"
+        data = resp.json()
+        text = data["choices"][0]["message"]["content"].strip()
+        return text if text else "No response generated. Try rephrasing your question."
+    except Exception as e:
+        return f"❌ Fallback model error: {e}"
+
 
 # ── PROMPT BUILDER ─────────────────────────────────────────────────────────────
 def build_prompt(query: str, snippets: list, mode: str,
