@@ -371,18 +371,46 @@ import re as _re
 # FIX 2: Input `m.group(2)` is already HTML-escaped at this point, so we
 #         unescape it once, then re-escape cleanly to avoid double-encoding.
 def _code_block(m):
+    lang = m.group(1) or ""
     code = m.group(2)
     # Undo the HTML escaping that was applied to the whole message body,
     # then re-apply it cleanly inside the <code> tag.
     code = code.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    # Strip leading/trailing blank lines but preserve internal newlines
+    code = code.strip("\n")
     code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    # Each line gets its own styled row for clean multiline display
+    lines = code.split("\n")
+    rows = ""
+    for line in lines:
+        # Preserve indentation by converting leading spaces to &nbsp;
+        stripped = line.lstrip(" ")
+        indent   = len(line) - len(stripped)
+        rows += (
+            f'<div style="display:block;min-height:1.5em;">'
+            f'{"&nbsp;" * indent}{stripped}'
+            f'</div>'
+        )
+    lang_badge = (
+        f'<span style="font-size:10px;color:var(--text-3);'
+        f'letter-spacing:.08em;text-transform:uppercase;">{lang}</span>'
+        if lang else ""
+    )
     return (
-        '<div style="width:100%;overflow-x:auto;margin:10px 0;">'
-        '<pre style="background:#0b0d11;border:1px solid #1f2330;border-radius:10px;'
-        'padding:16px;margin:0;white-space:pre;line-height:1.6;">'
+        f'<div style="width:100%;overflow-x:auto;margin:12px 0;border-radius:10px;'
+        f'border:1px solid #1f2330;background:#0b0d11;">'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;'
+        f'padding:8px 16px 6px;border-bottom:1px solid #1f2330;">'
+        f'{lang_badge}'
+        f'<span style="font-size:10px;color:var(--text-3);">code</span>'
+        f'</div>'
+        f'<div style="padding:14px 16px;overflow-x:auto;">'
         f'<code style="color:#e8eaf2;font-family:\'JetBrains Mono\',monospace;'
-        f'font-size:13px;display:block;">{code}</code>'
-        '</pre></div>'
+        f'font-size:13px;line-height:1.7;display:block;white-space:pre;">'
+        f'{rows}'
+        f'</code>'
+        f'</div>'
+        f'</div>'
     )
 
 chat = st.session_state.chat
