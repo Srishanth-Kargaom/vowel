@@ -24,7 +24,8 @@ HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.3"
 
 # ✅ FREE endpoint — uses the serverless inference API (no router, no billing)
 # Format: https://api-inference.huggingface.co/models/{model}/v1/chat/completions
-API_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}/v1/chat/completions"
+# New
+API_URL = "https://router.huggingface.co/hf-inference/models/facebook/wav2vec2-base-960h"
 
 # ── KNOWLEDGE BASE ─────────────────────────────────────────────────────────────
 KNOWLEDGE_BASE = [
