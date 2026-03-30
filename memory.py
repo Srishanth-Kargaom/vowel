@@ -4,6 +4,10 @@ memory.py — Persistent memory for Vowel AI Code Assistant.
 Two-layer memory:
   Short-term : session state (current conversation, in RAM)
   Long-term  : SQLite for text + FAISS for semantic search across all past conversations
+
+NOTE: On Streamlit Cloud, SQLite/FAISS files are written to the app's working
+directory. They persist for the lifetime of the deployment but reset on reboot.
+For true cross-session persistence, swap SQLite for a cloud DB (e.g. Supabase).
 """
 
 import sqlite3
@@ -13,8 +17,8 @@ import pickle
 import os
 from datetime import datetime
 
-DB_PATH  = "chat_history.db"
-IDX_PATH = "memory_index.bin"
+DB_PATH   = "chat_history.db"
+IDX_PATH  = "memory_index.bin"
 META_PATH = "memory_meta.pkl"
 DIM = 384  # all-MiniLM-L6-v2 produces 384-dim vectors
 
@@ -41,13 +45,13 @@ def load_memory_index():
         # Guard: if the saved index has the wrong dimension, discard and rebuild
         if index.d != DIM:
             index = faiss.IndexFlatIP(DIM)
-            meta  = []
+            meta = []
             return index, meta
         with open(META_PATH, "rb") as f:
             meta = pickle.load(f)
     else:
         index = faiss.IndexFlatIP(DIM)
-        meta  = []
+        meta = []
     return index, meta
 
 def save_memory_index(index, meta):
@@ -142,7 +146,7 @@ class MemoryManager:
 
     # ── HISTORY MANAGEMENT ─────────────────────────────────────────────────────
     def get_all_history(self) -> list:
-        con  = sqlite3.connect(DB_PATH)
+        con = sqlite3.connect(DB_PATH)
         rows = con.execute(
             "SELECT id, role, content, timestamp, session FROM conversations ORDER BY id ASC"
         ).fetchall()
@@ -169,12 +173,12 @@ class MemoryManager:
         con.commit()
         con.close()
         self.short_term = []
-        self.index      = faiss.IndexFlatIP(DIM)
-        self.meta       = []
+        self.index = faiss.IndexFlatIP(DIM)
+        self.meta  = []
         save_memory_index(self.index, self.meta)
 
     def _rebuild_index(self):
-        rows       = self.get_all_history()
+        rows = self.get_all_history()
         self.index = faiss.IndexFlatIP(DIM)
         self.meta  = []
         for row in rows:
