@@ -142,6 +142,14 @@ code, pre, .mono { font-family: 'JetBrains Mono', monospace !important; }
 .bubble.user { background: var(--accent-dim); border: 1px solid var(--accent); color: #ddd8ff; border-radius: var(--radius-lg) var(--radius-lg) 4px var(--radius-lg); }
 .bubble.bot  { background: var(--panel); border: 1px solid var(--border); color: var(--text-1); border-radius: var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px; font-family: 'JetBrains Mono', monospace; font-size: 13px; white-space: pre-wrap; }
 .bubble.bot code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--amber); }
+.bubble.bot pre {
+  white-space: pre !important;
+  overflow-x: auto !important;
+}
+
+.bubble.bot {
+  white-space: normal !important;
+}
 
 /* ── MEMORY NOTICE ── */
 .mem-notice { display: flex; align-items: center; gap: 6px; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--accent); margin-top: 6px; opacity: .75; }
@@ -410,14 +418,36 @@ else:
             content = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
             def _code_block(m):
-                code = m.group(2).replace("&amp;","&").replace("&lt;","<").replace("&gt;",">")
-                code = code.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
-                return (
-                    f'<pre style="background:#0b0d11;border:1px solid #1f2330;'
-                    f'border-radius:8px;padding:12px 16px;margin:8px 0;overflow-x:auto;">'
-                    f'<code style="color:#e8eaf2;font-family:\'JetBrains Mono\',monospace;'
-                    f'font-size:12px;line-height:1.6;">{code}</code></pre>'
-                )
+    code = m.group(2)
+
+    # Proper escaping
+    code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    return f"""
+    <div style="
+        width: 100%;
+        overflow-x: auto;
+        margin: 10px 0;
+    ">
+        <pre style="
+            background:#0b0d11;
+            border:1px solid #1f2330;
+            border-radius:10px;
+            padding:16px;
+            margin:0;
+            min-width:100%;
+            white-space:pre;
+            line-height:1.6;
+        ">
+<code style="
+    color:#e8eaf2;
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    display:block;
+">{code}</code>
+        </pre>
+    </div>
+    """
 
             content = _re.sub(r"```(\w*)\n?(.*?)```", _code_block, content, flags=_re.DOTALL)
             content = _re.sub(
@@ -435,7 +465,7 @@ else:
             bubbles_html += f"""
             <div class="msg-row bot">
               <div class="msg-meta"><span class="who">Vowel</span><span>{ts}</span></div>
-              <div class="bubble bot" style="white-space:normal;">{content}</div>
+              <div class="bubble bot">
               {mem_tag}
             </div>"""
 
